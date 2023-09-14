@@ -4,11 +4,8 @@ import com.picpaysimplificado.domain.transaction.Transaction;
 import com.picpaysimplificado.domain.user.User;
 import com.picpaysimplificado.dtos.TransactionDTO;
 import com.picpaysimplificado.repositories.TransactionRepository;
-import com.picpaysimplificado.repositories.UserRepository;
-import org.apache.coyote.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -29,16 +26,19 @@ public class TransactionService {
     @Autowired
     private RestTemplate restTemplate;
 
-    public void createTransaction(TransactionDTO transactionDTO) throws Exception {
+    @Autowired
+    private NotificationService notificationService;
+
+    public Transaction createTransaction(TransactionDTO transactionDTO) throws Exception {
         User sender = this.userService.findUserById(transactionDTO.senderId());
         User receiver = this.userService.findUserById(transactionDTO.receiverId());
 
         userService.validateTransaction(sender, transactionDTO.value());
 
-        boolean isAuthorized = this.authorizeTransaction(sender, transactionDTO.value());
-        if(!isAuthorized){
-            throw new Exception("Transação não autorizada");
-        }
+//        boolean isAuthorized = this.authorizeTransaction(sender, transactionDTO.value());
+//        if(!isAuthorized){
+//            throw new Exception("Transação não autorizada");
+//        }
 
         Transaction newTransaction = new Transaction();
         newTransaction.setAmount(transactionDTO.value());
@@ -46,9 +46,19 @@ public class TransactionService {
         newTransaction.setReceiver(receiver);
         newTransaction.setTimestamp(LocalDateTime.now());
 
+        sender.setBalance(sender.getBalance().subtract(transactionDTO.value()));
+        receiver.setBalance(receiver.getBalance().add(transactionDTO.value()));
+
         this.repository.save(newTransaction);
         this.userService.saveUser(sender);
         this.userService.saveUser(receiver);
+
+        this.notificationService.sendNotification(sender, "Transação realizada com sucesso");
+        this.notificationService.sendNotification(receiver, "Transação recebida como sucesso");
+
+        return newTransaction;
+
+
     }
 
     public boolean authorizeTransaction(User sender, BigDecimal value){
