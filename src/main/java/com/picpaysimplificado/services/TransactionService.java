@@ -3,6 +3,7 @@ package com.picpaysimplificado.services;
 import com.picpaysimplificado.domain.transaction.Transaction;
 import com.picpaysimplificado.domain.user.User;
 import com.picpaysimplificado.dtos.TransactionDTO;
+import com.picpaysimplificado.dtos.UserDTO;
 import com.picpaysimplificado.repositories.TransactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -35,10 +36,10 @@ public class TransactionService {
 
         userService.validateTransaction(sender, transactionDTO.value());
 
-//        boolean isAuthorized = this.authorizeTransaction(sender, transactionDTO.value());
-//        if(!isAuthorized){
-//            throw new Exception("Transação não autorizada");
-//        }
+        boolean isAuthorized = this.authorizeTransaction(sender, transactionDTO.value());
+        if(!isAuthorized){
+            throw new Exception("Transação não autorizada");
+        }
 
         Transaction newTransaction = new Transaction();
         newTransaction.setAmount(transactionDTO.value());
@@ -57,7 +58,6 @@ public class TransactionService {
         this.notificationService.sendNotification(receiver, "Transação recebida como sucesso");
 
         return newTransaction;
-
 
     }
 
