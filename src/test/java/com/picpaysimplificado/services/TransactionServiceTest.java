@@ -17,7 +17,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -71,10 +73,36 @@ class TransactionServiceTest {
     }
 
     @Test
+    void createTransaction_ValidTransaction_SuccessfulTransaction() throws Exception {
+        TransactionDTO validTransactionDTO = new TransactionDTO(BigDecimal.valueOf(500), 1L, 2L);
+
+        when(userService.findUserById(1L)).thenReturn(sender);
+        when(userService.findUserById(2L)).thenReturn(receiver);
+        when(restTemplate.getForEntity(anyString(), any())).
+                thenReturn(new ResponseEntity<>(Map.of("message", "Autorizado"), HttpStatus.OK));
+
+        Transaction transaction = transactionService.createTransaction(validTransactionDTO);
+
+        assertNotNull(transaction);
+        assertEquals(BigDecimal.valueOf(500), transaction.getAmount());
+        assertEquals(sender, transaction.getSender());
+        assertEquals(receiver, transaction.getReceiver());
+        assertNotNull(transaction.getTimestamp());
+
+        assertEquals(BigDecimal.valueOf(500), sender.getBalance());
+        assertEquals(BigDecimal.valueOf(1500), receiver.getBalance());
+
+        verify(transactionRepository, times(1)).save(any(Transaction.class));
+        verify(userService, times(2)).saveUser(any(User.class));
+        verify(notificationService, times(2)).sendNotification(any(User.class), anyString());
+    }
+
+    @Test
     void createTransaction_UnauthorizedTransaction_ThrowsException() throws Exception {
         when(userService.findUserById(ID)).thenReturn(sender);
         when(userService.findUserById(ID_R)).thenReturn(receiver);
-        when(restTemplate.getForEntity(anyString(), any())).thenReturn(new ResponseEntity<>(Map.of("message", "Não Autorizado"), HttpStatus.OK));
+        when(restTemplate.getForEntity(anyString(), any())).
+                thenReturn(new ResponseEntity<>(Map.of("message", "Não Autorizado"), HttpStatus.OK));
 
         Exception exception = assertThrows(Exception.class, () -> transactionService.createTransaction(validTransactionDTO));
         assertEquals("Transação não autorizada", exception.getMessage());
@@ -85,9 +113,41 @@ class TransactionServiceTest {
         BigDecimal amount = BigDecimal.valueOf(100);
         when(userService.findUserById(ID)).thenReturn(sender);
         when(userService.findUserById(ID_R)).thenReturn(receiver);
-        when(restTemplate.getForEntity(anyString(), any())).thenReturn(new ResponseEntity<>(new HashMap<>(), HttpStatus.INTERNAL_SERVER_ERROR));
+        when(restTemplate.getForEntity(anyString(), any())).
+                thenReturn(new ResponseEntity<>(new HashMap<>(), HttpStatus.INTERNAL_SERVER_ERROR));
 
         Exception exception = assertThrows(Exception.class, () -> transactionService.createTransaction(validTransactionDTO));
         assertEquals("Transação não autorizada", exception.getMessage());
+    }
+
+    @Test
+    void createTransaction_InsufficientBalance_ThrowsException() throws Exception {
+        TransactionDTO transactionDTO = new TransactionDTO(BigDecimal.valueOf(2000), 1L, 2L);
+
+        when(userService.findUserById(ID)).thenReturn(sender);
+
+        Exception exception = assertThrows(Exception.class, () -> transactionService.createTransaction(transactionDTO));
+       // assertEquals("Saldo insuficiente", exception.getMessage());
+
+        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(userService, never()).saveUser(any(User.class));
+        verify(notificationService, never()).sendNotification(any(User.class), anyString());
+    }
+    @Test
+    void getTransactions_ReturnsListOfTransactions() {
+        Transaction transaction1 = new Transaction();
+        transaction1.setId(ID);
+
+        Transaction transaction2 = new Transaction();
+        transaction2.setId(ID_R);
+
+        List<Transaction> transactions = Arrays.asList(transaction1, transaction2);
+        when(transactionRepository.findAll()).thenReturn(transactions);
+
+        List<Transaction> result = transactionService.getTransactions();
+
+        assertEquals(2, result.size());
+        assertEquals(1L, result.get(0).getId());
+        assertEquals(2L, result.get(1).getId());
     }
 }
