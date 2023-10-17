@@ -13,6 +13,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -58,7 +59,6 @@ public class TransactionService {
         this.notificationService.sendNotification(receiver, "Transação recebida como sucesso");
 
         return newTransaction;
-
     }
 
     public boolean authorizeTransaction(User sender, BigDecimal value){
@@ -69,5 +69,9 @@ public class TransactionService {
             String message = (String) authorizationResponse.getBody().get("message");
             return "Autorizado".equalsIgnoreCase(message);
         }else return false;
+    }
+
+    public List<Transaction> getTransactions(){
+        return repository.findAll();
     }
 }
